@@ -41,8 +41,11 @@ void CollectorGuiExternalBridge::publishToggleHelpPage() const {
 
 void CollectorGuiExternalBridge::publishRobotAct(
     [[maybe_unused]]MoveType moveType) const {
-  LOGR("Oh no ... nothing happened ... and the buttons remained locked. "
-       "Maybe something will unlock them externally?");
+  RCLCPP_INFO(this->get_logger(), "Publishing: move_type");
+
+  RobotMoveType msg;
+  msg.move_type = getMoveTypeField(moveType);
+  _playerActPublisher->publish(msg);
 }
 
 void CollectorGuiExternalBridge::publishUserAuthenticate(const UserData &data) {
@@ -94,6 +97,9 @@ ErrorCode CollectorGuiExternalBridge::initCommunication() {
 
   _toggleDebugInfoPublisher = create_publisher<Empty>(TOGGLE_DEBUG_INFO_TOPIC,
       queueSize, publisherOptions);
+
+  _playerActPublisher = create_publisher<RobotMoveType>(ROBOT_MOVE_TYPE_TOPIC,
+      qos, publisherOptions);
 
   _enableRobotTurnSubscription = create_subscription<Empty>(
       ENABLE_ROBOT_INPUT_TOPIC, queueSize,
