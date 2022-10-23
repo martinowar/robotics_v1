@@ -20,6 +20,7 @@ find_package(robo_miner_interfaces REQUIRED)
 add_executable(${PROJECT_NAME}
     src/main.cpp
     src/RoboMinerTaskSolver.cpp
+    src/FieldPos.cpp
 )
 
 target_include_directories(

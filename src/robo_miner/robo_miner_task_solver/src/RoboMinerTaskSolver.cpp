@@ -11,24 +11,6 @@ constexpr auto QUERY_INITIAL_ROBOT_POSITION_SERVICE = "query_initial_robot_posit
 constexpr auto ROBOT_MOVE_SERVICE = "move_robot";
 constexpr auto FIELD_MAP_VALIDATE_SERVICE = "field_map_validate";
 
-// TODO include FieldPos from robo_miner_common
-FieldPos::FieldPos(int32_t inputRow, int32_t inputCol) {
-  row = inputRow;
-  col = inputCol;
-}
-
-bool FieldPos::operator==(const FieldPos& other) const {
-  return (row == other.row && col == other.col);
-}
-
-bool FieldPos::operator<(const FieldPos& other) const {
-  if (row == other.row) {
-    return col < other.col;
-  }
-
-  return row < other.row;
-}
-
 RoboMinerTaskSolver::RoboMinerTaskSolver() : Node("robo_miner_task_solver")
 {
 }
@@ -94,23 +76,24 @@ RobotMove::Response RoboMinerTaskSolver::doRobotMove(const uint8_t robotMoveType
 void RoboMinerTaskSolver::doFieldMapValidate(const FieldData &data)
 {
   auto request = std::make_shared<FieldMapValidate::Request>();
-  request->field_map.rows = data.size() - 2;
-  request->field_map.cols = data[0].size() - 2;
+  // the 'data' contains the wall tiles; they should be skipped
+  request->field_map.rows = data.size() - WALL_CELL - WALL_CELL;
+  request->field_map.cols = data[0].size() - WALL_CELL - WALL_CELL;
   std::vector<uint8_t> vData(request->field_map.rows * request->field_map.cols);
 
   for (uint32_t row = 0; row < request->field_map.rows; ++row)
   {
-	  for (uint32_t col = 0; col < request->field_map.cols; ++col)
+	for (uint32_t col = 0; col < request->field_map.cols; ++col)
+	{
+	  if (data[row + WALL_CELL][col + WALL_CELL] < 0)
 	  {
-		  if (data[row+1][col+1] < 0)
-		  {
-			  vData[(row * request->field_map.cols) + col] = data[row + 1][col + 1] + CELL_PROCESSED_MARKER;
-		  }
-		  else
-		  {
-			  vData[(row * request->field_map.cols) + col] = data[row + 1][col + 1];
-		  }
+		vData[(row * request->field_map.cols) + col] = data[row + WALL_CELL][col + WALL_CELL] + CELL_PROCESSED_MARKER;
 	  }
+	  else
+	  {
+		vData[(row * request->field_map.cols) + col] = data[row + WALL_CELL][col + WALL_CELL];
+	  }
+	}
   }
 
   request->field_map.data = vData;
@@ -134,7 +117,7 @@ void RoboMinerTaskSolver::doFieldMapValidate(const FieldData &data)
   }
 }
 
-bool RoboMinerTaskSolver::isValidMove(const FieldData &data, const FieldPos &location)
+bool RoboMinerTaskSolver::isValidMove(const FieldData &data, const FieldPos &location) const
 {
   if (m_mapTopLeftPos.row > location.row) {
 	return false;
@@ -164,7 +147,7 @@ bool RoboMinerTaskSolver::isValidMove(const FieldData &data, const FieldPos &loc
   return true;
 }
 
-FieldPos RoboMinerTaskSolver::getPhysicalPos(const FieldPos &logicalPos)
+FieldPos RoboMinerTaskSolver::getPhysicalPos(const FieldPos &logicalPos) const
 {
 	FieldPos phyPos;
 
@@ -225,7 +208,7 @@ void RoboMinerTaskSolver::setMapCell( FieldData &data, const FieldPos &cellPos, 
 	data[phyPos.row][phyPos.col] = tileValue;
 }
 
-void RoboMinerTaskSolver::setMapCells(FieldData &data, const FieldPos &robotPos, const uint32_t robotDir, const std::array<uint8_t,3> &tileArray)
+void RoboMinerTaskSolver::setAdjacentCells(FieldData &data, const FieldPos &robotPos, const uint32_t robotDir, const std::array<uint8_t,3> &tileArray)
 {
 	if (robotDir == RobotPositionResponse::DIRECTION_UP)
 	{
@@ -357,7 +340,7 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
   uint8_t robotDir = result_query.robot_position_response.robot_dir;
   FieldData data(1, std::deque<char>(1, 0));
   data[robotPos.row][robotPos.col] = result_query.robot_initial_tile - CELL_PROCESSED_MARKER;
-  setMapCells(data, robotPos, robotDir, result_query.robot_position_response.surrounding_tiles);
+  setAdjacentCells(data, robotPos, robotDir, result_query.robot_position_response.surrounding_tiles);
 
   RobotMove::Response result_robot_move;
 
@@ -365,15 +348,15 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
   {
 	const auto currLocation = dataPath.top();
 
-	constexpr auto arrSize = 4;
-	const std::array<FieldPos, arrSize> dirs = {
+	constexpr auto directionCount = 4;
+	const std::array<FieldPos, directionCount> dirs = {
 			FieldPos { currLocation.row - 1, currLocation.col},
 			FieldPos { currLocation.row,     currLocation.col + 1 },
 			FieldPos { currLocation.row + 1, currLocation.col },
 		    FieldPos { currLocation.row,     currLocation.col - 1 } };
 
 	bool tempVarFound = false;
-	for (uint8_t idx = 0; idx < 4; ++idx)
+	for (uint8_t idx = 0; idx < directionCount; ++idx)
 	{
 	  if (isValidMove(data, dirs[idx])) {
 		tempVarFound = true;
@@ -382,7 +365,7 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
 		result_robot_move = doRobotMove(RobotMoveType::FORWARD);
 		robotDir = result_robot_move.robot_position_response.robot_dir;
 		robotPos = dirs[idx];
-		setMapCells(data, robotPos, robotDir, result_robot_move.robot_position_response.surrounding_tiles);
+		setAdjacentCells(data, robotPos, robotDir, result_robot_move.robot_position_response.surrounding_tiles);
 		auto phyPos = getPhysicalPos(robotPos);
 		data[phyPos.row][phyPos.col] -= CELL_PROCESSED_MARKER;
 		break;
