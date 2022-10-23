@@ -18,6 +18,7 @@ using RobotPositionResponse = robo_miner_interfaces::msg::RobotPositionResponse;
 #include <deque>
 #include <stack>
 
+// TODO use from robo_miner_common
 struct FieldPos {
   FieldPos() = default;
   FieldPos(int32_t row, int32_t col);
@@ -34,10 +35,9 @@ class RoboMinerTaskSolver : public rclcpp::Node
 public:
 	RoboMinerTaskSolver();
 	void init();
-	void dfsMapTraverse();
+	void mapTraverseAndValidate();
 
 private:
-	// TODO use FieldData from "robo_miner_common"
 	using FieldData = std::deque<std::deque<char>>;
 
 	static constexpr char TILE_OBSTACLE = 'X';
@@ -48,25 +48,20 @@ private:
 	static constexpr char CELL_PROCESSED_MARKER = 127; // decrease by 127 to mark the cell as processed
 
 	QueryInitialRobotPosition::Response doQueryInitialRobotPosition();
-	RobotMove::Response doRobotMove(uint8_t robotMoveType);
-	void doFieldMapValidate(FieldData & data);
-	bool isValidMove_RandomMouse(uint8_t tileForward);
-	bool isValidMove_DFS(FieldData &data, const FieldPos &location);
-	void setMapCells(FieldData &data, FieldPos &robotPos, uint32_t robotDir, std::array<uint8_t,3> &tileArray);
-	void setMapCell(FieldData &data, const FieldPos &cellPos, uint8_t tileValue);
-	void changeRobotDir(uint8_t robotDir, uint8_t newDir);
+	RobotMove::Response doRobotMove(const uint8_t robotMoveType);
+	void doFieldMapValidate(const FieldData & data);
+	bool isValidMove(const FieldData &data, const FieldPos &location);
+	void setMapCells(FieldData &data, const FieldPos &robotPos, const uint32_t robotDir, const std::array<uint8_t,3> &tileArray);
+	void setMapCell(FieldData &data, const FieldPos &cellPos, const uint8_t tileValue);
+	void changeRobotDir(const uint8_t robotDir, const uint8_t newDir);
 	FieldPos getPhysicalPos(const FieldPos &logicalPos);
 	void moveToPrevPos(FieldPos &oldPos, const FieldPos &newPos, uint8_t &robotDir);
 
-	rclcpp::Client<QueryInitialRobotPosition>::SharedPtr client_query_initial_robot_position;
-	rclcpp::Client<RobotMove>::SharedPtr client_robot_move;
-	rclcpp::Client<FieldMapValidate>::SharedPtr client_field_map_validate;
+	rclcpp::Client<QueryInitialRobotPosition>::SharedPtr m_clientQueryInitialRobotPosition;
+	rclcpp::Client<RobotMove>::SharedPtr m_clientRobotMove;
+	rclcpp::Client<FieldMapValidate>::SharedPtr m_clientFieldMapValidate;
 	FieldPos m_mapTopLeftPos;
 	FieldPos m_mapBottomRightPos;
-	uint32_t m_map_width;
-	uint32_t m_map_height;
-	int32_t m_robot_pos_x;
-	int32_t m_robot_pos_y;
 };
 
 #endif /* ROBO_MINER_TASK_SOLVER_H_ */

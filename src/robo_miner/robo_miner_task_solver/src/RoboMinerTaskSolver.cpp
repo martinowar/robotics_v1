@@ -31,22 +31,22 @@ bool FieldPos::operator<(const FieldPos& other) const {
   return row < other.row;
 }
 
-RoboMinerTaskSolver::RoboMinerTaskSolver() : Node("robo_miner_task_solver"), m_map_width(0), m_map_height(0), m_robot_pos_x(0), m_robot_pos_y(0)
+RoboMinerTaskSolver::RoboMinerTaskSolver() : Node("robo_miner_task_solver")
 {
 }
 
 void RoboMinerTaskSolver::init()
 {
-  client_query_initial_robot_position = create_client<QueryInitialRobotPosition>(QUERY_INITIAL_ROBOT_POSITION_SERVICE, rmw_qos_profile_services_default);
-  client_robot_move = create_client<RobotMove>(ROBOT_MOVE_SERVICE, rmw_qos_profile_services_default);
-  client_field_map_validate = create_client<FieldMapValidate>(FIELD_MAP_VALIDATE_SERVICE, rmw_qos_profile_services_default);
+  m_clientQueryInitialRobotPosition = create_client<QueryInitialRobotPosition>(QUERY_INITIAL_ROBOT_POSITION_SERVICE, rmw_qos_profile_services_default);
+  m_clientRobotMove = create_client<RobotMove>(ROBOT_MOVE_SERVICE, rmw_qos_profile_services_default);
+  m_clientFieldMapValidate = create_client<FieldMapValidate>(FIELD_MAP_VALIDATE_SERVICE, rmw_qos_profile_services_default);
 }
 
 QueryInitialRobotPosition::Response RoboMinerTaskSolver::doQueryInitialRobotPosition()
 {
   auto request = std::make_shared<QueryInitialRobotPosition::Request>();
 
-  while (!client_query_initial_robot_position->wait_for_service(1s)) {
+  while (!m_clientQueryInitialRobotPosition->wait_for_service(1s)) {
 	if (!rclcpp::ok()) {
 	  RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
 	  exit(1);
@@ -54,7 +54,7 @@ QueryInitialRobotPosition::Response RoboMinerTaskSolver::doQueryInitialRobotPosi
 	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
   }
 
-  auto result = client_query_initial_robot_position->async_send_request(request);
+  auto result = m_clientQueryInitialRobotPosition->async_send_request(request);
   // Wait for the result.
   if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
 	rclcpp::FutureReturnCode::SUCCESS)
@@ -67,12 +67,12 @@ QueryInitialRobotPosition::Response RoboMinerTaskSolver::doQueryInitialRobotPosi
   return *result.get();
 }
 
-RobotMove::Response RoboMinerTaskSolver::doRobotMove(uint8_t robotMoveType)
+RobotMove::Response RoboMinerTaskSolver::doRobotMove(const uint8_t robotMoveType)
 {
   auto request = std::make_shared<RobotMove::Request>();
   request->robot_move_type.move_type = robotMoveType;
 
-  while (!client_robot_move->wait_for_service(1s)) {
+  while (!m_clientRobotMove->wait_for_service(1s)) {
 	if (!rclcpp::ok()) {
 	  RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
 	  exit(1);
@@ -80,7 +80,7 @@ RobotMove::Response RoboMinerTaskSolver::doRobotMove(uint8_t robotMoveType)
 	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
   }
 
-  auto result = client_robot_move->async_send_request(request);
+  auto result = m_clientRobotMove->async_send_request(request);
   // Wait for the result.
   if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
 	rclcpp::FutureReturnCode::SUCCESS)
@@ -93,7 +93,7 @@ RobotMove::Response RoboMinerTaskSolver::doRobotMove(uint8_t robotMoveType)
   return *result.get();
 }
 
-void RoboMinerTaskSolver::doFieldMapValidate(FieldData &data)
+void RoboMinerTaskSolver::doFieldMapValidate(const FieldData &data)
 {
   auto request = std::make_shared<FieldMapValidate::Request>();
   request->field_map.rows = data.size() - 2;
@@ -117,7 +117,7 @@ void RoboMinerTaskSolver::doFieldMapValidate(FieldData &data)
 
   request->field_map.data = vData;
 
-  while (!client_field_map_validate->wait_for_service(1s)) {
+  while (!m_clientFieldMapValidate->wait_for_service(1s)) {
 	if (!rclcpp::ok()) {
 	  RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
 	  exit(1);
@@ -125,7 +125,7 @@ void RoboMinerTaskSolver::doFieldMapValidate(FieldData &data)
 	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
   }
 
-  auto result = client_field_map_validate->async_send_request(request);
+  auto result = m_clientFieldMapValidate->async_send_request(request);
   // Wait for the result.
   if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result) ==
 	rclcpp::FutureReturnCode::SUCCESS)
@@ -136,7 +136,7 @@ void RoboMinerTaskSolver::doFieldMapValidate(FieldData &data)
   }
 }
 
-bool RoboMinerTaskSolver::isValidMove_DFS(FieldData &data, const FieldPos &location)
+bool RoboMinerTaskSolver::isValidMove(const FieldData &data, const FieldPos &location)
 {
   if (m_mapTopLeftPos.row > location.row) {
 	return false;
@@ -185,7 +185,7 @@ FieldPos RoboMinerTaskSolver::getPhysicalPos(const FieldPos &logicalPos)
 	return FieldPos(phyPos.row, phyPos.col);
 }
 
-void RoboMinerTaskSolver::setMapCell(FieldData &data, const FieldPos &cellPos, uint8_t tileValue)
+void RoboMinerTaskSolver::setMapCell( FieldData &data, const FieldPos &cellPos, const uint8_t tileValue)
 {
 	if (cellPos.row < m_mapTopLeftPos.row)
 	{
@@ -227,7 +227,7 @@ void RoboMinerTaskSolver::setMapCell(FieldData &data, const FieldPos &cellPos, u
 	data[phyPos.row][phyPos.col] = tileValue;
 }
 
-void RoboMinerTaskSolver::setMapCells(FieldData &data, FieldPos &robotPos, uint32_t robotDir, std::array<uint8_t,3> &tileArray)
+void RoboMinerTaskSolver::setMapCells(FieldData &data, const FieldPos &robotPos, const uint32_t robotDir, const std::array<uint8_t,3> &tileArray)
 {
 	if (robotDir == RobotPositionResponse::DIRECTION_UP)
 	{
@@ -255,7 +255,7 @@ void RoboMinerTaskSolver::setMapCells(FieldData &data, FieldPos &robotPos, uint3
 	}
 }
 
-void RoboMinerTaskSolver::changeRobotDir(uint8_t robotDir, uint8_t newDir)
+void RoboMinerTaskSolver::changeRobotDir(const uint8_t robotDir, const uint8_t newDir)
 {
 	if (robotDir == newDir)
 	{
@@ -347,7 +347,7 @@ void RoboMinerTaskSolver::moveToPrevPos(FieldPos &oldPos, const FieldPos &newPos
 	robotDir = newRobotDir;
 }
 
-void RoboMinerTaskSolver::dfsMapTraverse()
+void RoboMinerTaskSolver::mapTraverseAndValidate()
 {
   std::stack<FieldPos> dataPath;
   FieldPos robotPos(0, 0);
@@ -377,7 +377,7 @@ void RoboMinerTaskSolver::dfsMapTraverse()
 	bool tempVarFound = false;
 	for (uint8_t idx = 0; idx < 4; ++idx)
 	{
-	  if (isValidMove_DFS(data, dirs[idx])) {
+	  if (isValidMove(data, dirs[idx])) {
 		tempVarFound = true;
 		dataPath.push(dirs[idx]);
 		changeRobotDir(robotDir, idx);
@@ -393,14 +393,14 @@ void RoboMinerTaskSolver::dfsMapTraverse()
 
 	if (!tempVarFound)
 	{
-		dataPath.pop();
-		if (!dataPath.empty())
-		{
-			const auto prevPos = dataPath.top();
-			moveToPrevPos(robotPos, prevPos, robotDir);
-		}
+      dataPath.pop();
+	  if (!dataPath.empty())
+	  {
+	    const auto prevPos = dataPath.top();
+		moveToPrevPos(robotPos, prevPos, robotDir);
+	  }
 	}
-  }
+ }
 
   doFieldMapValidate(data);
 }
@@ -412,8 +412,7 @@ int main(int argc, char **argv)
   std::shared_ptr<RoboMinerTaskSolver> node_task_solver = std::make_shared<RoboMinerTaskSolver>();
   node_task_solver->init();
 
-//  node_task_solver->randomMouseMapTraverse();
-  node_task_solver->dfsMapTraverse();
+  node_task_solver->mapTraverseAndValidate();
 
   rclcpp::shutdown();
   return 0;
