@@ -3,8 +3,6 @@
 //#include "robo_miner_common/defines/RoboMinerTopics.h"
 
 #include <chrono>
-#include <cstdlib>
-#include <memory>
 
 using namespace std::chrono_literals;
 
@@ -13,7 +11,7 @@ constexpr auto QUERY_INITIAL_ROBOT_POSITION_SERVICE = "query_initial_robot_posit
 constexpr auto ROBOT_MOVE_SERVICE = "move_robot";
 constexpr auto FIELD_MAP_VALIDATE_SERVICE = "field_map_validate";
 
-// TODO use from robo_miner_common
+// TODO include FieldPos from robo_miner_common
 FieldPos::FieldPos(int32_t inputRow, int32_t inputCol) {
   row = inputRow;
   col = inputCol;
@@ -403,17 +401,4 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
  }
 
   doFieldMapValidate(data);
-}
-
-int main(int argc, char **argv)
-{
-  rclcpp::init(argc, argv);
-
-  std::shared_ptr<RoboMinerTaskSolver> node_task_solver = std::make_shared<RoboMinerTaskSolver>();
-  node_task_solver->init();
-
-  node_task_solver->mapTraverseAndValidate();
-
-  rclcpp::shutdown();
-  return 0;
 }

@@ -18,7 +18,7 @@ using RobotPositionResponse = robo_miner_interfaces::msg::RobotPositionResponse;
 #include <deque>
 #include <stack>
 
-// TODO use from robo_miner_common
+// TODO include FieldPos from robo_miner_commonv
 struct FieldPos {
   FieldPos() = default;
   FieldPos(int32_t row, int32_t col);

@@ -17,7 +17,10 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robo_miner_interfaces REQUIRED)
 
-add_executable(${PROJECT_NAME} src/RoboMinerTaskSolver.cpp)
+add_executable(${PROJECT_NAME}
+    src/main.cpp
+    src/RoboMinerTaskSolver.cpp
+)
 
 target_include_directories(
     ${PROJECT_NAME} 
