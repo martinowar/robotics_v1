@@ -49,12 +49,14 @@ private:
 	void doActivateMiningValidate();
 	bool isValidMove(const FieldData &data, const FieldPos &location) const;
 	bool isValidMoveWhenGoToCell(const FieldData &data, const FieldPos &location) const;
+	bool isValidMoveWhileMining(const FieldData &data, const FieldPos &location, const int8_t crystalValue) const;
 	void setAdjacentCells(FieldData &data, const FieldPos &robotPos, const uint32_t robotDir, const std::array<uint8_t,3> &tileArray);
 	void setMapCell(FieldData &data, const FieldPos &cellPos, const uint8_t tileValue);
 	void changeRobotDir(const uint8_t robotDir, const uint8_t newDir);
 	FieldPos getPhysicalPos(const FieldPos &logicalPos) const;
 	void moveToPrevPos(FieldPos &oldPos, const FieldPos &newPos, uint8_t &robotDir);
 	void moveToCell(FieldData &data, FieldPos &robotPos, const FieldPos &cellPos, uint8_t &robotDir);
+	void mineLongestSequence(FieldData &data, FieldPos &robotPos, uint8_t &robotDir);
 
 	rclcpp::Client<QueryInitialRobotPosition>::SharedPtr m_clientQueryInitialRobotPosition;
 	rclcpp::Client<RobotMove>::SharedPtr m_clientRobotMove;

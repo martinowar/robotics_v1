@@ -149,7 +149,7 @@ void RoboMinerTaskSolver::doLongestSequenceValidate(std::vector<FieldPos> &longe
 	rclcpp::FutureReturnCode::SUCCESS)
   {
 	  // print debug information
-	  RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "success (%d); error_reason = %s", result.get()->success, result.get()->error_reason);
+	  RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "success (%d); error_reason = %s", result.get()->success, result.get()->error_reason.c_str());
   } else {
 	RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service %s", LONGEST_SEQUENCE_VALIDATE_SERVICE);
   }
@@ -173,7 +173,7 @@ void RoboMinerTaskSolver::doActivateMiningValidate()
 	rclcpp::FutureReturnCode::SUCCESS)
   {
 	  // print debug information
-	  RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "success (%d); error_reason = %s", result.get()->success, result.get()->error_reason);
+	  RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "success (%d); error_reason = %s", result.get()->success, result.get()->error_reason.c_str());
   } else {
 	RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service %s", ACTIVATE_MINING_VALIDATE_SERVICE);
   }
@@ -433,13 +433,16 @@ bool RoboMinerTaskSolver::isValidMoveWhenGoToCell(const FieldData &data, const F
 
 void RoboMinerTaskSolver::moveToCell(FieldData &data, FieldPos &robotPos, const FieldPos &cellPos, uint8_t &robotDir)
 {
+//  printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
   std::stack<FieldPos> dataPath;
   dataPath.push(robotPos);
 
   RobotMove::Response result_robot_move;
 
-  while ((robotPos.row != cellPos.row) && (robotPos.col != cellPos.col))
+  while (!((robotPos.row == cellPos.row) && (robotPos.col == cellPos.col)))
   {
+//	printf("while BEGIN\n");
+//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
 	const auto currLocation = dataPath.top();
 
 	constexpr auto directionCount = 4;
@@ -473,6 +476,90 @@ void RoboMinerTaskSolver::moveToCell(FieldData &data, FieldPos &robotPos, const 
 		moveToPrevPos(robotPos, prevPos, robotDir);
 	  }
 	}
+
+//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
+//	printf("while END\n");
+  }
+}
+
+bool RoboMinerTaskSolver::isValidMoveWhileMining(const FieldData &data, const FieldPos &location, const int8_t crystalValue) const
+{
+  if (0 > location.row) {
+	return false;
+  }
+
+  if (static_cast<int32_t>(data.size()) <= location.row) {
+	return false;
+  }
+
+  if (0 > location.col) {
+	return false;
+  }
+
+  if (!data[0].empty() &&
+	  static_cast<int32_t>(data[0].size()) <= location.col) {
+	return false;
+  }
+
+  if ((data[location.row][location.col] >= 0) &&
+      (data[location.row][location.col] != crystalValue))
+  {
+	return false;
+  }
+
+  return true;
+}
+
+void RoboMinerTaskSolver::mineLongestSequence(FieldData &data, FieldPos &robotPos, uint8_t &robotDir)
+{
+  printf("moveToCell: robotPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, robotDir);
+
+  auto crystalValue = data[robotPos.row][robotPos.col];
+  std::stack<FieldPos> dataPath;
+  dataPath.push(robotPos);
+
+  RobotMove::Response result_robot_move;
+
+  while (!dataPath.empty())
+  {
+//	printf("while BEGIN\n");
+//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
+	const auto currLocation = dataPath.top();
+
+	constexpr auto directionCount = 4;
+	const std::array<FieldPos, directionCount> dirs = {
+			FieldPos { currLocation.row - 1, currLocation.col},
+			FieldPos { currLocation.row,     currLocation.col + 1 },
+			FieldPos { currLocation.row + 1, currLocation.col },
+			FieldPos { currLocation.row,     currLocation.col - 1 } };
+
+	bool validMoveFound = false;
+	for (uint8_t idx = 0; idx < directionCount; ++idx)
+	{
+	  if (isValidMoveWhileMining(data, dirs[idx], crystalValue)) {
+		validMoveFound = true;
+		dataPath.push(dirs[idx]);
+		changeRobotDir(robotDir, idx);
+		result_robot_move = doRobotMove(RobotMoveType::FORWARD);
+		robotDir = result_robot_move.robot_position_response.robot_dir;
+		robotPos = dirs[idx];
+		data[robotPos.row][robotPos.col] -= CELL_PROCESSED_MARKER;
+		break;
+	  }
+	}
+
+	if (!validMoveFound)
+	{
+	  dataPath.pop();
+	  if (!dataPath.empty())
+	  {
+		const auto prevPos = dataPath.top();
+		moveToPrevPos(robotPos, prevPos, robotDir);
+	  }
+	}
+
+//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
+//	printf("while END\n");
   }
 }
 
@@ -531,7 +618,11 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
     }
   }
 
-  //cleanupMapData(data);
+  // Convert to physical coordinates and decrease the rol/col due to the wall
+  robotPos = getPhysicalPos(robotPos);
+  robotPos.row--;
+  robotPos.col--;
+
   doFieldMapValidate(data);
 
   cleanupMapData(data);
@@ -540,6 +631,9 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
 
   doLongestSequenceValidate(longestCrystalSequence);
 
-  moveToCell(data, robotPos, longestCrystalSequence[0], robotDir);
+  auto tmpData = data;
+  moveToCell(tmpData, robotPos, longestCrystalSequence[0], robotDir);
   doActivateMiningValidate();
+
+  mineLongestSequence(data, robotPos, robotDir);
 }
