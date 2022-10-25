@@ -81,22 +81,21 @@ RobotMove::Response RoboMinerTaskSolver::doRobotMove(const uint8_t robotMoveType
 void RoboMinerTaskSolver::doFieldMapValidate(FieldData &data)
 {
   auto request = std::make_shared<FieldMapValidate::Request>();
-  // the 'data' contains the wall tiles; they should be skipped
-  request->field_map.rows = data.size() - WALL_CELL - WALL_CELL;
-  request->field_map.cols = data[0].size() - WALL_CELL - WALL_CELL;
+  request->field_map.rows = data.size();
+  request->field_map.cols = data[0].size();
   std::vector<uint8_t> vData(request->field_map.rows * request->field_map.cols);
 
   for (uint32_t row = 0; row < request->field_map.rows; ++row)
   {
 	for (uint32_t col = 0; col < request->field_map.cols; ++col)
 	{
-	  if (data[row + WALL_CELL][col + WALL_CELL] < 0)
+	  if (data[row][col] < 0)
 	  {
 		// Remove the CELL_PROCESSED_MARKER offset
-		data[row + WALL_CELL][col + WALL_CELL] += CELL_PROCESSED_MARKER;
+		data[row][col] += CELL_PROCESSED_MARKER;
 	  }
 
-	  vData[(row * request->field_map.cols) + col] = data[row + WALL_CELL][col + WALL_CELL];
+	  vData[(row * request->field_map.cols) + col] = data[row][col];
 	}
   }
 
@@ -149,7 +148,6 @@ void RoboMinerTaskSolver::doLongestSequenceValidate(std::vector<FieldPos> &longe
 	rclcpp::FutureReturnCode::SUCCESS)
   {
 	  // print debug information
-	  RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "success (%d); error_reason = %s", result.get()->success, result.get()->error_reason.c_str());
   } else {
 	RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service %s", LONGEST_SEQUENCE_VALIDATE_SERVICE);
   }
@@ -173,7 +171,6 @@ void RoboMinerTaskSolver::doActivateMiningValidate()
 	rclcpp::FutureReturnCode::SUCCESS)
   {
 	  // print debug information
-	  RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "success (%d); error_reason = %s", result.get()->success, result.get()->error_reason.c_str());
   } else {
 	RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service %s", ACTIVATE_MINING_VALIDATE_SERVICE);
   }
@@ -228,8 +225,14 @@ FieldPos RoboMinerTaskSolver::getPhysicalPos(const FieldPos &logicalPos) const
 	return FieldPos(phyPos.row, phyPos.col);
 }
 
-void RoboMinerTaskSolver::setMapCell( FieldData &data, const FieldPos &cellPos, const uint8_t tileValue)
+void RoboMinerTaskSolver::setMapCell(FieldData &data, const FieldPos &cellPos, const uint8_t tileValue)
 {
+	// Do not add the wall tile to the data structure
+	if (tileValue == TILE_WALL)
+	{
+		return;
+	}
+
 	if (cellPos.row < m_mapTopLeftPos.row)
 	{
 		data.push_front(std::deque<char>(data[0].size(), 0));
@@ -390,18 +393,6 @@ void RoboMinerTaskSolver::moveToPrevPos(FieldPos &oldPos, const FieldPos &newPos
 	robotDir = newRobotDir;
 }
 
-void cleanupMapData(FieldData &data)
-{
-	data.erase(data.begin());
-	data.erase(data.end());
-
-	for (auto &row : data)
-	{
-		row.erase(row.begin());
-		row.erase(row.end());
-	}
-}
-
 bool RoboMinerTaskSolver::isValidMoveWhenGoToCell(const FieldData &data, const FieldPos &location) const
 {
   if (0 > location.row) {
@@ -433,7 +424,6 @@ bool RoboMinerTaskSolver::isValidMoveWhenGoToCell(const FieldData &data, const F
 
 void RoboMinerTaskSolver::moveToCell(FieldData &data, FieldPos &robotPos, const FieldPos &cellPos, uint8_t &robotDir)
 {
-//  printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
   std::stack<FieldPos> dataPath;
   dataPath.push(robotPos);
 
@@ -441,8 +431,6 @@ void RoboMinerTaskSolver::moveToCell(FieldData &data, FieldPos &robotPos, const 
 
   while (!((robotPos.row == cellPos.row) && (robotPos.col == cellPos.col)))
   {
-//	printf("while BEGIN\n");
-//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
 	const auto currLocation = dataPath.top();
 
 	constexpr auto directionCount = 4;
@@ -476,9 +464,6 @@ void RoboMinerTaskSolver::moveToCell(FieldData &data, FieldPos &robotPos, const 
 		moveToPrevPos(robotPos, prevPos, robotDir);
 	  }
 	}
-
-//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
-//	printf("while END\n");
   }
 }
 
@@ -512,8 +497,6 @@ bool RoboMinerTaskSolver::isValidMoveWhileMining(const FieldData &data, const Fi
 
 void RoboMinerTaskSolver::mineLongestSequence(FieldData &data, FieldPos &robotPos, uint8_t &robotDir)
 {
-  printf("moveToCell: robotPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, robotDir);
-
   auto crystalValue = data[robotPos.row][robotPos.col];
   std::stack<FieldPos> dataPath;
   dataPath.push(robotPos);
@@ -522,8 +505,6 @@ void RoboMinerTaskSolver::mineLongestSequence(FieldData &data, FieldPos &robotPo
 
   while (!dataPath.empty())
   {
-//	printf("while BEGIN\n");
-//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
 	const auto currLocation = dataPath.top();
 
 	constexpr auto directionCount = 4;
@@ -557,23 +538,18 @@ void RoboMinerTaskSolver::mineLongestSequence(FieldData &data, FieldPos &robotPo
 		moveToPrevPos(robotPos, prevPos, robotDir);
 	  }
 	}
-
-//	printf("moveToCell: robotPos (%d %d); cellPos (%d %d); robotDir (%d)\n", robotPos.row, robotPos.col, cellPos.row, cellPos.col, robotDir);
-//	printf("while END\n");
   }
 }
 
-void RoboMinerTaskSolver::mapTraverseAndValidate()
+void RoboMinerTaskSolver::mapTraverse(FieldData &data, FieldPos &robotPos, uint8_t &robotDir)
 {
   std::stack<FieldPos> dataPath;
-  FieldPos robotPos(0, 0);
   dataPath.push(robotPos);
   m_mapTopLeftPos = robotPos;
   m_mapBottomRightPos = robotPos;
 
   auto result_query = doQueryInitialRobotPosition();
-  uint8_t robotDir = result_query.robot_position_response.robot_dir;
-  FieldData data(1, std::deque<char>(1, 0));
+  robotDir = result_query.robot_position_response.robot_dir;
   data[robotPos.row][robotPos.col] = result_query.robot_initial_tile - CELL_PROCESSED_MARKER;
   setAdjacentCells(data, robotPos, robotDir, result_query.robot_position_response.surrounding_tiles);
 
@@ -617,15 +593,19 @@ void RoboMinerTaskSolver::mapTraverseAndValidate()
 	  }
     }
   }
+}
 
-  // Convert to physical coordinates and decrease the rol/col due to the wall
+void RoboMinerTaskSolver::run()
+{
+  FieldData data(1, std::deque<char>(1, 0));
+  FieldPos robotPos(0, 0);
+  uint8_t robotDir;
+
+  mapTraverse(data, robotPos, robotDir);
+
   robotPos = getPhysicalPos(robotPos);
-  robotPos.row--;
-  robotPos.col--;
 
   doFieldMapValidate(data);
-
-  cleanupMapData(data);
 
   auto longestCrystalSequence = FloodFill::findLongestCrystalSequence(data, std::vector<char>('#', 'X'));
 

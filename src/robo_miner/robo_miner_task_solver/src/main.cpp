@@ -8,7 +8,7 @@ int main(int argc, char **argv)
   std::shared_ptr<RoboMinerTaskSolver> nodeTaskSolver = std::make_shared<RoboMinerTaskSolver>();
   nodeTaskSolver->init();
 
-  nodeTaskSolver->mapTraverseAndValidate();
+  nodeTaskSolver->run();
 
   rclcpp::shutdown();
   return 0;

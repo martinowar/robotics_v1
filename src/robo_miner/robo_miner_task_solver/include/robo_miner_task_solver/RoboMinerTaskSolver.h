@@ -31,7 +31,7 @@ class RoboMinerTaskSolver : public rclcpp::Node
 public:
 	RoboMinerTaskSolver();
 	void init();
-	void mapTraverseAndValidate();
+	void run();
 
 private:
 	static constexpr char TILE_OBSTACLE = 'X';
@@ -39,7 +39,6 @@ private:
 	static constexpr uint8_t IDX_LEFT = 0;
 	static constexpr uint8_t IDX_FORWARD = 1;
 	static constexpr uint8_t IDX_RIGHT = 2;
-	static constexpr uint8_t WALL_CELL = 1;
 	static constexpr char CELL_PROCESSED_MARKER = 127; // decrease by 127 to mark the cell as processed
 
 	QueryInitialRobotPosition::Response doQueryInitialRobotPosition();
@@ -56,6 +55,7 @@ private:
 	FieldPos getPhysicalPos(const FieldPos &logicalPos) const;
 	void moveToPrevPos(FieldPos &oldPos, const FieldPos &newPos, uint8_t &robotDir);
 	void moveToCell(FieldData &data, FieldPos &robotPos, const FieldPos &cellPos, uint8_t &robotDir);
+	void mapTraverse(FieldData &data, FieldPos &robotPos, uint8_t &robotDir);
 	void mineLongestSequence(FieldData &data, FieldPos &robotPos, uint8_t &robotDir);
 
 	rclcpp::Client<QueryInitialRobotPosition>::SharedPtr m_clientQueryInitialRobotPosition;
